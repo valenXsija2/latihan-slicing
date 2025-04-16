@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Plant Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-green-50">
+    <div class="flex h-screen">
+        <!-- Sidebar -->
+        <aside class="w-64 bg-green-100 p-5">
+            <h1 class="text-xl font-bold text-green-700">Plant Monitor</h1>
+            <nav class="mt-5 space-y-3">
+                <a href="#" class="block py-2 px-4 bg-green-200 rounded">Dashboard</a>
+                <a href="#" class="block py-2 px-4">Temperature</a>
+                <a href="#" class="block py-2 px-4">Humidty</a>
+                <a href="#" class="block py-2 px-4">pH Levels</a>
+                <a href="#" class="block py-2 px-4">Light</a>
+            </nav>
+        </aside>
+        
+        <!-- Main Content -->
+        <main class="flex-1 p-6">
+            <h2 class="text-2xl font-bold text-green-700">Real-Time Plant Monitoring Dashboard</h2>
+
+            <!-- Ringkasan Data -->
+            <div class="grid grid-cols-4 gap-4 mt-4">
+                <div class="bg-white p-4 rounded-lg shadow text-center">
+                    <h3 class="text-lg font-semibold text-green-700">Rata-rata Temperature</h3>
+                    <p id="avg-temp" class="text-2xl font-bold text-green-600">-</p>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow text-center">
+                    <h3 class="text-lg font-semibold text-green-700">Rata-rata Kelembapan</h3>
+                    <p id="avg-moisture" class="text-2xl font-bold text-green-600">-</p>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow text-center">
+                    <h3 class="text-lg font-semibold text-green-700">Total Data Masuk</h3>
+                    <p id="total-data" class="text-2xl font-bold text-green-600">-</p>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow text-center">
+                    <h3 class="text-lg font-semibold text-green-700">Moisture Status (Wet/Dry)</h3>
+                    <p id="moisture-status" class="text-2xl font-bold">-</p>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow text-center">
+                    <h3 class="text-lg font-semibold text-green-700">Light Status</h3>
+                    <p id="light-status" class="text-2xl font-bold">-</p>
+                </div>
+            </div>
+            
+
+            <!-- Container Chart (Grid 2x2) -->
+            <div class="grid grid-cols-2 gap-6 mt-6">
+                <div class="bg-white p-6 rounded-lg shadow">
+                    <h3 class="text-xl font-semibold text-green-700">Temperature</h3>
+                    <canvas id="tempChart" class="h-64"></canvas>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow">
+                    <h3 class="text-xl font-semibold text-green-700">Humidty</h3>
+                    <canvas id="moistureChart" class="h-64"></canvas>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow">
+                    <h3 class="text-xl font-semibold text-green-700">Moisture Monitoring</h3>
+                    <canvas id="moistureMonitoringChart" class="h-64"></canvas>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow">
+                    <h3 class="text-xl font-semibold text-green-700">Light Monitoring</h3>
+                    <canvas id="lightChart" class="h-64"></canvas>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Script Chart.js -->
+    <script>
+        const API_URL = "https://api.thingspeak.com/channels/2879583/feeds.json?results=60";
+
+        let tempChart, moistureChart, moistureMonitoringChart, lightChart;
+
+        function createChart(canvasId, label, color) {
+            return new Chart(document.getElementById(canvasId), {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: label,
+                        data: [],
+                        borderColor: color,
+                        backgroundColor: color.replace('1)', '0.2)'),
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    scales: {
+                        x: { display: true },
+                        y: { display: true }
+                    }
+                }
+            });
+        }
+
+        // Inisialisasi Chart Kosong
+        tempChart = createChart('tempChart', 'Temperature', 'rgba(34, 197, 94, 1)');
+        moistureChart = createChart('moistureChart', 'Kelembapan', 'rgba(59, 130, 246, 1)');
+        moistureMonitoringChart = createChart('moistureMonitoringChart', 'Moisture Monitoring', 'rgba(239, 68, 68, 1)');
+        lightChart = createChart('lightChart', 'Light Intensity', 'rgba(234, 179, 8, 1)');
+
+        async function fetchData() {
+            try {
+                const response = await fetch(API_URL);
+                const data = await response.json();
+
+                const labels = data.feeds.map(feed => new Date(feed.created_at).toLocaleTimeString());
+                const tempValues = data.feeds.map(feed => parseFloat(feed.field1 || 0));
+                const moistureValues = data.feeds.map(feed => parseFloat(feed.field2 || 0));
+                const moistureMonitoringValues = data.feeds.map(feed => parseFloat(feed.field3 || 0));
+                const lightValues = data.feeds.map(feed => parseFloat(feed.field4 || 0));
+
+                updateChart(tempChart, labels, tempValues);
+                updateChart(moistureChart, labels, moistureValues);
+                updateChart(moistureMonitoringChart, labels, moistureMonitoringValues);
+                updateChart(lightChart, labels, lightValues);
+
+                document.getElementById("avg-temp").textContent = (tempValues.reduce((a, b) => a + b, 0) / tempValues.length).toFixed(2) + "°C";
+                document.getElementById("avg-moisture").textContent = (moistureValues.reduce((a, b) => a + b, 0) / moistureValues.length).toFixed(2);
+                document.getElementById("total-data").textContent = tempValues.length;
+
+                const latestMoistureMonitoring = moistureMonitoringValues[moistureMonitoringValues.length - 1] || 0;
+                const moistureStatus = latestMoistureMonitoring === 0 ? "Wet" : "Dry";
+                document.getElementById("moisture-status").textContent = moistureStatus;
+                document.getElementById("moisture-status").className = moistureStatus === "Wet" ? "text-blue-500 font-bold" : "text-red-500 font-bold";
+
+                const latestLightValue = lightValues[lightValues.length - 1] || 0;
+                const lightStatus = latestLightValue > 250 ? "Light ON" : "Light OFF";
+                document.getElementById("light-status").textContent = lightStatus;
+                document.getElementById("light-status").className = lightStatus === "Light ON" ? "text-yellow-500 font-bold" : "text-gray-500 font-bold";
+
+
+
+            } catch (error) {
+                console.error("Gagal mengambil data:", error);
+            }
+        }
+
+        function updateChart(chart, labels, data) {
+            chart.data.labels = labels;
+            chart.data.datasets[0].data = data;
+            chart.update();
+        }
+
+        fetchData();
+        setInterval(fetchData, 10000);
+    </script>
+</body>
+</html>
